@@ -15,7 +15,9 @@ from api.response import response
 from api.schemas import UserRead, UserUpdate, UserCreate, UserUpdateAdmin, UserReadAdmin, UserSettingSchema
 from api.users import auth_backend, fastapi_users, current_active_user, get_user_manager_context, current_super_user, \
     get_user_manager, UserManager
-
+from api.database.my_email import send_email
+from api.database.my_redis import client
+from fastapi_users import exceptions
 router = APIRouter()
 config = Config()
 
@@ -64,13 +66,71 @@ async def logout(
 async def register(
         request: Request,
         user_create: UserCreate,
-        _user: User = Depends(current_super_user),
+        # _user: User = Depends(current_super_user),
 ):
     """注册时不能指定setting，使用默认setting"""
     async with get_async_session_context() as session:
         async with get_user_db_context(session) as user_db:
             async with get_user_manager_context(user_db) as user_manager:
+                # check captcha
+                flag = client.exists(user_create.remark.lower())
+                if not flag:
+                    return response(400, message="验证码错误")
                 user = await user_manager.create(user_create, safe=False, request=request)
+                welcome_subject = "Bear Baby AI:Welcome to Our Platform!"
+                try:
+                    await send_email(user.email, welcome_subject, user.username, "0")
+                except Exception as e:
+                    # 可以选择记录邮件发送失败的错误，但不阻止用户注册流程
+                    print(f"Failed to send welcome email: {e}")
+                return UserReadAdmin.model_validate(user)
+
+
+from pydantic import BaseModel, Field, EmailStr
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(..., min_length=4, max_length=6, description="The verification code sent to your email.")
+    newPassword: str = Field(..., min_length=6, description="Your new password.")
+
+
+@router.post("/auth/reset_password", response_model=UserReadAdmin, tags=["auth"])
+async def reset_password(
+        request: Request,
+        reset_request: PasswordResetRequest,
+):
+    """重置密码接口，需要提供邮箱、验证码和新密码"""
+    async with get_async_session_context() as session:
+        async with get_user_db_context(session) as user_db:
+            async with get_user_manager_context(user_db) as user_manager:
+                # 验证码校验
+                captcha_key = f"captcha:{reset_request.code.lower()}"
+                stored_captcha = client.get(captcha_key)
+                # if not stored_captcha or stored_captcha != reset_request.code:
+                #     raise response(400, "验证码错误或已过期")
+
+                # 寻找用户并重置密码
+                try:
+                    user = await user_manager.get_by_email(reset_request.email)
+                except exceptions.UserNotExists:
+                    # 当找不到用户时，返回一个明确的错误响应
+                    return response(404, "邮箱不存在")
+
+                # 更新用户密码
+                await user_manager.update_password(user, reset_request.new_password)
+
+                # 发送密码重置成功的邮件
+                try:
+                    success_subject = "Your password has been reset successfully"
+                    await send_email(user.email, success_subject, user.username, "1")  # 假设"1"表示密码重置邮件
+                except Exception as e:
+                    # 记录邮件发送失败的错误，但不阻止流程
+                    print(f"Failed to send password reset success email: {e}")
+
+                # 清除验证码
+                client.delete(captcha_key)
+
                 return UserReadAdmin.model_validate(user)
 
 

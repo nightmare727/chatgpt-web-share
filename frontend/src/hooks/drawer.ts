@@ -24,7 +24,18 @@ export function useDrawer(options: UseDrawerOption[]) {
     console.log('open', _name, opt);
   }
 
-  function close() {
+  // function close() {
+  //   const opt = _options.find((option) => option.name === name.value);
+  //   show.value = false;
+  //   opt?.afterClose?.();
+  // }
+  // 修改close函数，增加force参数，默认值为true
+  function close(force: boolean = true) {
+    // 如果force为false，表示不强制关闭，可以在这里添加判断逻辑
+    // 例如，提交失败时，可以调用close(false)来阻止抽屉关闭
+    if (!force) {
+      return; // 如果不是强制关闭，则直接返回，不执行关闭操作
+    }
     const opt = _options.find((option) => option.name === name.value);
     show.value = false;
     opt?.afterClose?.();

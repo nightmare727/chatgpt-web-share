@@ -13,9 +13,15 @@
     <n-form-item :label="t('commons.email')" path="email">
       <n-input v-model:value="user.email" placeholder="" />
     </n-form-item>
-    <n-form-item :label="t('commons.remark')" path="remark">
-      <n-input v-model:value="user.remark" placeholder="" />
+    <n-form-item :label="t('commons.remark')">
+      <div style="display: flex; align-items: center;">
+        <n-input v-model:value="user.remark" placeholder="" />
+        <img :src="captchaSrc" @click="refreshCaptcha" style="cursor: pointer; margin-left: 10px;width: 120px" alt=""/>
+      </div>
     </n-form-item>
+<!--    <n-form-item :label="t('commons.remark')" path="remark">-->
+<!--      <n-input v-model:value="user.remark" style="width: 100px" placeholder="" />-->
+<!--    </n-form-item>-->
   </n-form>
   <n-button type="primary" @click="handleSubmit">
     {{ t('commons.submit') }}
@@ -30,6 +36,7 @@ import { UserCreate } from '@/types/schema';
 import { Message } from '@/utils/tips';
 import { getEmailRule, getPasswordRule } from '@/utils/validate';
 const t = i18n.global.t as any;
+import axios from 'axios';
 
 const emits = defineEmits<{
   (event: 'save', userCreate: UserCreate): void;
@@ -47,6 +54,7 @@ const user = ref<UserCreate>({
   is_active: true,
   is_verified: false,
   is_superuser: false,
+  captcha: '',
 });
 
 const rules = {
@@ -65,4 +73,27 @@ const handleSubmit = () => {
     emits('save', user.value);
   });
 };
+const captchaSrc = ref('');
+function getCaptcha() {
+  axios.get('/chat/captcha', { responseType: 'blob' })
+    .then((response) => {
+      // 将获取到的图像数据转换为URL
+      captchaSrc.value = URL.createObjectURL(response.data);
+      console.log(captchaSrc.value); // 日志输出新的图像URL
+    })
+    .catch((error) => {
+      console.error('Error fetching captcha:', error);
+    });
+}
+
+// 用于触发刷新验证码的函数
+function refreshCaptcha() {
+  getCaptcha();
+}
+
+// 在组件挂载时获取验证码
+getCaptcha();
+
+
+
 </script>

@@ -21,6 +21,51 @@ default_openai_web_model_code_mapping = {
 }
 
 
+class MyConfig:
+    # 通用配置
+    SECRET_KEY = "your_secret_key_here"
+
+
+class DevelopmentConfig(MyConfig):
+    # 开发环境配置
+    DEBUG = True
+    MONGODB_URL = "mongodb://localhost:27017/your_db_name"
+    REDIS_URL = "redis://localhost:6379/0"
+    MONGODB_DB_NAME = "your_db_name"
+
+
+class TestingConfig(MyConfig):
+    # 测试环境配置
+    DEBUG = True
+    TESTING = True
+    MONGODB_URL = "mongodb://localhost:27017/test_db_name"
+    REDIS_URL = "redis://localhost:6379/1"
+    MONGODB_DB_NAME = "test_db_name"
+
+
+class ProductionConfig(MyConfig):
+    # 生产环境配置
+    DEBUG = False
+    MONGODB_URL = "mongodb://prod_user:prod_pass@prod_host:27017/prod_db_name"
+    REDIS_URL = "redis://prod_user:prod_pass@prod_host:6379/0"
+    MONGODB_DB_NAME = "prod_db_name"
+
+
+# 默认使用开发环境配置
+config = DevelopmentConfig()
+
+# 或者根据环境变量来切换配置
+import os
+
+environment = os.getenv('ENVIRONMENT', 'development').lower()
+if environment == 'production':
+    config = ProductionConfig()
+elif environment == 'testing':
+    config = TestingConfig()
+else:
+    config = DevelopmentConfig()
+
+
 class CommonSetting(BaseModel):
     print_sql: bool = False
     create_initial_admin_user: bool = True
@@ -102,7 +147,7 @@ class OpenaiWebChatGPTSetting(BaseModel):
 
 class OpenaiApiSetting(BaseModel):
     enabled: bool = True
-    openai_base_url: str = 'https://api.openai.com/v1/'
+    openai_base_url: str = 'https://tiens-gpt4-ae-2.openai.azure.com/openai/deployments/gpt4/chat/completions?api-version=2023-05-15'
     proxy: Optional[str] = None
     connect_timeout: int = Field(10, ge=1)
     read_timeout: int = Field(20, ge=1)

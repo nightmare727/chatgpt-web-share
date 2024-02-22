@@ -78,6 +78,7 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, Integer]):
                 raise api.exceptions.UserAlreadyExists("Username already exists")
             # TODO 暂时没有检查email是否unique
 
+
     async def create(self, user_create: UserCreate, user_setting: Optional[UserSettingSchema] = None,
                      safe: bool = False, request: Optional[Request] = None) -> User:
 

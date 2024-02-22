@@ -42,7 +42,14 @@ class StatisticsMiddleware:
                 raw_status_code = message.get("status", None)
             elif message["type"] == "http.response.body":
                 body = message.get("body", None)  # byte string
-                if body is not None:
+                content_type = "application/octet-stream"  # 默认为二进制流
+                if "headers" in message:
+                    for name, value in message["headers"]:
+                        if name.decode("utf-8").lower() == "content-type":
+                            content_type = value.decode("utf-8")
+                            break
+                if content_type.startswith("text/") or content_type == "application/json":
+                    body = message["body"].decode("utf-8")
                     body = body.decode("utf-8")
                     try:
                         body = json.loads(body)

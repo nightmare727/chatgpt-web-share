@@ -14,13 +14,14 @@ from api.models.doc import OpenaiApiChatMessage, OpenaiApiConversationHistoryDoc
 from api.schemas.openai_schemas import OpenaiChatResponse
 from utils.common import singleton_with_lock
 from utils.logger import get_logger
+import threading
 
 logger = get_logger(__name__)
 
 config = Config()
 credentials = Credentials()
 
-MAX_CONTEXT_MESSAGE_COUNT = 1000
+MAX_CONTEXT_MESSAGE_COUNT = 5
 
 
 async def _check_response(response: httpx.Response) -> None:
@@ -46,6 +47,43 @@ def make_session() -> httpx.AsyncClient:
     else:
         session = httpx.AsyncClient(timeout=None)
     return session
+
+
+class LoadBalancer:
+    lock = threading.Lock()
+
+    def __init__(self, configs):
+        self.servers = []
+        for config in configs:
+            self.servers.append({
+                "azure_endpoint": config['endPoint'],
+                "api_key": config['key'],
+                'model': config['model']
+            })
+        self.index = -1
+
+    def get_server(self):
+        with self.lock:
+            self.index = (self.index + 1) % len(self.servers)
+            return self.servers[self.index]
+
+
+# gpt4turbo
+server_configs = [
+    {'endPoint': "https://tiens-gpt4-us2-2.openai.azure.com/", 'key': "1c4a2474685b4c4b8494c39fc65699d0",
+     'model': 'gpt4'},
+    {'endPoint': "https://tiens-gpt4-ae-2.openai.azure.com/", 'key': "cc2e8b274a3248808d0cc542e415c04a",
+     'model': 'gpt4'},
+    {'endPoint': "https://tiens-gpt4-ce-2.openai.azure.com/", 'key': "64bb4f833e98477fb98c0d5f58db5690",
+     'model': 'gpt4'},
+    {'endPoint': "https://tiens-gpt4-fc-2.openai.azure.com/", 'key': "854d81aa26424c3ea63fae3174db2109",
+     'model': 'gpt4'},
+    {'endPoint': "https://tiens-gpt4-uk-2.openai.azure.com/", 'key': "c9f3159c94564e0d89a04a34a2b0833e",
+     'model': 'gpt4'},
+    {'endPoint': "https://tiens-gpt4-wu-2.openai.azure.com/", 'key': "a8844d6224884547a0e674ee23caa727",
+     'model': 'gpt4'},
+]
+load_balancer = LoadBalancer(server_configs)
 
 
 @singleton_with_lock
@@ -80,6 +118,7 @@ class OpenaiApiChatManager:
                 source="openai_api",
             )
         )
+        # azure_endpoint = "https://tiens-gpt4-ae-2.openai.azure.com/openai/deployments/gpt4/chat/completions?api-version=2023-05-15"
 
         messages = []
 
@@ -104,23 +143,25 @@ class OpenaiApiChatManager:
 
             count = 0
             iter_count = 0
-
+            total_len = 0
             while msg:
                 count += 1
+                total_len += len(msg.content.text)
+                if total_len > 1024*2:
+                    break
                 messages.append(msg)
                 if context_message_count != -1 and count >= context_message_count:
                     break
                 iter_count += 1
                 if iter_count > MAX_CONTEXT_MESSAGE_COUNT:
-                    raise ValueError(f"too many messages to iterate, conversation_id={conversation_id}")
+                    break
                 msg = conv_history.mapping.get(str(msg.parent))
-
             messages.reverse()
             messages.append(new_message)
 
         # TODO: credits 判断
-
-        base_url = config.openai_api.openai_base_url
+        server = load_balancer.get_server()
+        base_url = server["azure_endpoint"] + "openai/deployments/gpt4/chat/completions?api-version=2023-05-15"
         data = {
             "model": model.code(),
             "messages": [{"role": msg.role, "content": msg.content.text} for msg in messages],
@@ -135,11 +176,13 @@ class OpenaiApiChatManager:
 
         async with self.session.stream(
                 method="POST",
-                url=f"{base_url}chat/completions",
+                url=f"{base_url}",
                 json=data,
-                headers={"Authorization": f"Bearer {credentials.openai_api_key}"},
+                # headers={"Authorization": f"Bearer {credentials.openai_api_key}"},-H "api-key: $AZURE_OPENAI_KEY" \
+                headers={"api-key": f"{server['api_key']}"},
                 timeout=timeout
         ) as response:
+            logger.info(f"data : {data}")
             await _check_response(response)
             async for line in response.aiter_lines():
                 if not line or line is None:
