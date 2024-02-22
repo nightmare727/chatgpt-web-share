@@ -7,10 +7,9 @@ import { NewConversationInfo } from '@/types/custom';
 import { BaseConversationSchema } from '@/types/schema';
 import { Dialog, Message } from '@/utils/tips';
 import NewConversationForm from '@/views/conversation/components/NewConversationForm.vue';
-import ForgetPasswordForm from '@/views/conversation/components/ForgetPasswordForm.vue';
-import {ForgetPasswordInfo } from "@/store/types"
+
 const t = i18n.global.t as any;
-import { ref } from 'vue';
+
 export const dropdownRenderer = (
   conversation: BaseConversationSchema,
   handleDeleteConversation: (conversation_id?: string) => void,
@@ -105,67 +104,7 @@ export const popupResetUserPasswordDialog = (
 ) => {
   popupInputDialog(t('commons.resetPassword'), t('tips.resetPassword'), callback, success, fail);
 };
-async function resetPasswordApi(forgetPasswordInfo:ForgetPasswordInfo) {
-  try {
-    const response = await fetch('/api/auth/reset_password', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(forgetPasswordInfo),
-    });
-    if (!response.ok) {
-      throw new Error('Password reset failed');
-    }
-    const data = await response.json(); // 或处理成功响应
-    if (data.code!==200){
-      throw new Error(data.message);
-    }
-    return data;
-  } catch (error) {
-    console.error('Error resetting password:', error);
-    throw error; // 把错误抛出，让调用者处理
-  }
-}
-export const popupForgetPasswordDialog = (callback: (forgetPasswordInfo: ForgetPasswordInfo) => Promise<void>) => {
- let input = ref<ForgetPasswordInfo | null>(null);
 
-  const d = Dialog.info({
-    title: 'Forget Password',
-    positiveText: 'Confirm',
-    negativeText: 'Cancel',
-    content: () =>
-      h(ForgetPasswordForm, {
-        onInput: (newForgetPasswordInfo: ForgetPasswordInfo) => {
-          input.value = newForgetPasswordInfo;
-        },
-      }),
-    style: { width: '500px' },
-    onPositiveClick() {
-      d.loading = true;
-      return new Promise((resolve) => {
-        if (!input.value || !input.value.email || !input.value.code || !input.value.newPassword) {
-          Message.error('All fields are required.');
-          resolve(false);
-          d.loading = false;
-          return;
-        }
-        resetPasswordApi(input.value)
-          .then(() => {
-            Message.success('Password reset successfully.');
-            resolve(true);
-          })
-          .catch((error) => {
-            Message.error(`Error: ${error.message}`);
-            resolve(false);
-          })
-          .finally(() => {
-            d.loading = false;
-          });
-      });
-    },
-  });
-};
 export const popupNewConversationDialog = (callback: (newConversationInfo: NewConversationInfo) => Promise<void>) => {
   let input = null as NewConversationInfo | null;
   const d = Dialog.info({

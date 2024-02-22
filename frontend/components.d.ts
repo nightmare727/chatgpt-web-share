@@ -50,7 +50,6 @@ declare module 'vue' {
     NListItem: typeof import('naive-ui')['NListItem']
     NLog: typeof import('naive-ui')['NLog']
     NMenu: typeof import('naive-ui')['NMenu']
-    NModal: typeof import('naive-ui')['NModal']
     NP: typeof import('naive-ui')['NP']
     NPageHeader: typeof import('naive-ui')['NPageHeader']
     NPagination: typeof import('naive-ui')['NPagination']

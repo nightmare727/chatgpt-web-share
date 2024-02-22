@@ -12,7 +12,7 @@ class SelfDefinedException(Exception):
 
 
 class AuthenticationFailedException(SelfDefinedException):
-    def __init__(self, message: str = "账号或者密码不正确"):
+    def __init__(self, message: str = ""):
         super().__init__(reason="errors.authenticationFailed", message=message, code=10401)
 
 

@@ -1772,7 +1772,6 @@ export interface components {
       avatar?: string | null;
       /** Remark */
       remark?: string | null;
-      captcha?: string | null;
     };
     /** UserRead */
     UserRead: {

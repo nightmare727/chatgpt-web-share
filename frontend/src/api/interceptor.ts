@@ -42,10 +42,6 @@ const successCode = [200, 201, 204];
 axios.interceptors.response.use(
   (response: AxiosResponse<HttpResponse>) => {
     const res = response.data;
-    if (response.headers['content-type'] === 'image/png' || response.config.url === '/chat/captcha') {
-      // 直接返回验证码图像的响应
-      return response;
-    }
     if (!successCode.includes(res.code)) {
       console.warn('Error: ', res);
       let msg = `${res.code}`;

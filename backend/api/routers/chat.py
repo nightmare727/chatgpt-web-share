@@ -1,6 +1,5 @@
 import json
 import os
-import string
 import time
 import uuid
 from datetime import datetime, timezone
@@ -13,7 +12,6 @@ from fastapi_cache.decorator import cache
 from httpx import HTTPError
 from pydantic import ValidationError
 from sqlalchemy import select, func, and_
-from starlette.responses import StreamingResponse
 from starlette.websockets import WebSocket, WebSocketState
 from websockets.exceptions import ConnectionClosed
 
@@ -33,18 +31,13 @@ from api.sources import OpenaiWebChatManager, convert_openai_web_message, Openai
 from api.users import websocket_auth, current_active_user, current_super_user
 from utils.common import desensitize
 from utils.logger import get_logger
-from captcha.image import ImageCaptcha
-from io import BytesIO
-import random
-import string
-from api.database.my_redis import client
 
 logger = get_logger(__name__)
 router = APIRouter()
 openai_web_manager = OpenaiWebChatManager()
 openai_api_manager = OpenaiApiChatManager()
 config = Config()
-captcha_storage = {}
+
 INSTALLED_PLUGINS_CACHE_FILE_PATH = os.path.join(config.data.data_dir, "installed_plugin_manifests.json")
 INSTALLED_PLUGINS_CACHE_EXPIRE = 3600 * 24
 
@@ -222,33 +215,6 @@ async def check_limits(user: UserReadAdmin, ask_request: AskRequest):
             raise WebsocketInvalidAskException("errors.uploadingNotAllowed", "only gpt-4 support uploading images")
         if user.setting.openai_web.disable_uploading or config.openai_web.disable_uploading:
             raise WebsocketInvalidAskException("errors.uploadingNotAllowed", "uploading disabled")
-
-
-# 获取验证码
-@router.get("/chat/captcha")
-async def get_captcha():
-    """
-    获取验证码
-    """
-    # Generate a 6-character random captcha string
-    captcha_text = ''.join(random.choices(string.ascii_letters + string.digits, k=4))
-
-    # Create a captcha image
-    image = ImageCaptcha(width=280, height=90)
-
-    # Generate image data
-    data = image.generate(captcha_text)
-    image_data = BytesIO(data.getvalue())
-    # 生成一个随机的标识符来存储和检索验证码
-    captcha_id = ''.join(random.choices(string.ascii_letters + string.digits, k=8))
-    captcha_storage[captcha_id] = captcha_text
-    client.set(captcha_text.lower(), captcha_id, ex=300)
-    logger.info(f"captcha_id: {captcha_id}, captcha_text: {captcha_text}")
-    # 将验证码ID发送给客户端作为引用，但不发送验证码的文本值
-    response = StreamingResponse(image_data, media_type="image/png")
-    response.headers['Captcha-ID'] = captcha_id
-    # Create and return a streaming response
-    return StreamingResponse(image_data, media_type="image/png")
 
 
 @router.websocket("/chat")
