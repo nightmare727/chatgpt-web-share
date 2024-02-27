@@ -1,6 +1,7 @@
 import contextlib
 import re
 from datetime import datetime, timezone
+from operator import or_
 from typing import Any, Optional, Union
 
 from fastapi import Depends, Request
@@ -69,19 +70,33 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, Integer]):
             raise api.exceptions.InvalidParamsException("Password contains invalid characters")
         return
 
-    async def _check_username_unique(self, username, exclude_username=None):
+    async def _check_username_unique(self, username, email, exclude_username=None, exclude_email=None):
         if not username:
             return
         async with get_async_session_context() as session:
-            user = (await session.execute(select(User).filter(User.username == username))).scalar_one_or_none()
-            if user and user.username != exclude_username:
-                raise api.exceptions.UserAlreadyExists("Username already exists")
-            # TODO 暂时没有检查email是否unique
+            # user = (await session.execute(select(User).filter(User.username == username))).scalar_one_or_none()
+            # if user and user.username != exclude_username:
+            #     raise api.exceptions.UserAlreadyExists("Username already exists")
+            # # TODO 暂时没有检查email是否unique
+            conditions = []
+            if username:
+                conditions.append(User.username == username)
+            if email:
+                conditions.append(User.email == email)
+
+            user = (await session.execute(select(User).filter(or_(*conditions)))).scalar_one_or_none()
+
+            # 检查找到的用户是否是排除的用户
+            if user and (user.username != exclude_username or user.email != exclude_email):
+                if user.username == username:
+                    raise api.exceptions.UserAlreadyExists("用户名已存在")
+                if user.email == email:
+                    raise api.exceptions.EmailExistException("邮箱已存在")
 
     async def create(self, user_create: UserCreate, user_setting: Optional[UserSettingSchema] = None,
                      safe: bool = False, request: Optional[Request] = None) -> User:
 
-        await self._check_username_unique(username=user_create.username)
+        await self._check_username_unique(username=user_create.username, email=user_create.email)
         await self.validate_password(user_create.password, user_create)
 
         user_dict = user_create.dict()
@@ -107,6 +122,11 @@ class UserManager(IntegerIDMixin, BaseUserManager[User, Integer]):
             await session.commit()
             await session.refresh(user)
             return user
+
+    async def get_by_email(self, user_email: str) -> models.UP:
+        async with get_async_session_context() as session:
+            user = await session.execute(select(User).filter(User.email == user_email))
+            return user.scalar_one_or_none()
 
     async def update(self, user_update: Union[UserUpdate, UserUpdateAdmin], user: User, safe: bool = False,
                      request: Optional[Request] = None) -> User:

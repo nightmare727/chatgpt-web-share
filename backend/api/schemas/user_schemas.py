@@ -171,7 +171,8 @@ class UserUpdate(schemas.BaseUserUpdate):
     email: str | None = None
     avatar: str | None = None
 
-
+class UserForgetPassword(UserUpdate):
+    code: str| None = None
 class UserUpdateAdmin(UserUpdate):
     username: str | None = None
     remark: str | None = None

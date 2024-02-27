@@ -35,7 +35,10 @@ export function getAllUserApi() {
 export function getUserMeApi() {
   return axios.get<UserRead>(ApiUrl.UserMe);
 }
+export function getCaptchaApi() {
+    return axios.get(ApiUrl.captcha);
 
+}
 export function updateUserMeApi(userUpdate: Partial<UserUpdate>) {
   return axios.patch<UserRead>(ApiUrl.UserMe, userUpdate);
 }

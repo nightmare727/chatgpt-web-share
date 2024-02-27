@@ -3,6 +3,7 @@ enum ApiUrl {
   Login = '/auth/login',
   Logout = '/auth/logout',
   UserMe = '/user/me',
+  captcha = '/chat/captcha',
 
   Conversation = '/conv',
   AllConversation = '/conv/all',

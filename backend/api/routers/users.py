@@ -1,6 +1,8 @@
+import random
+import string
 from typing import Tuple
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_users import BaseUserManager
 from fastapi_users.authentication import Strategy
@@ -12,12 +14,18 @@ from api.database.sqlalchemy import get_async_session_context, get_user_db_conte
 from api.exceptions import UserNotExistException, AuthenticationFailedException
 from api.models.db import User
 from api.response import response
-from api.schemas import UserRead, UserUpdate, UserCreate, UserUpdateAdmin, UserReadAdmin, UserSettingSchema
+from api.schemas import UserRead, UserUpdate, UserCreate, UserUpdateAdmin, UserReadAdmin, UserSettingSchema, \
+    UserForgetPassword
 from api.users import auth_backend, fastapi_users, current_active_user, get_user_manager_context, current_super_user, \
     get_user_manager, UserManager
+from api.database.my_email import send_email
+from api.database.my_redis import client
+from fastapi_users import exceptions
 
 router = APIRouter()
 config = Config()
+import logging
+import logging.config
 
 
 # router.include_router(
@@ -60,18 +68,116 @@ async def logout(
     return response(200, headers=resp.headers)
 
 
+@router.get("/send/email")
+async def send_email_forget_email(email: str):
+    try:
+        redis_key = f"forget_password:{email.lower()}"
+        code = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+        client.set(redis_key, code, ex=300)
+        welcome_subject = "Bear Baby AI:Reset Your Email!"
+        await send_email(email, welcome_subject, code, "1")
+        logging.info(f"code: {code}, email: {email}")
+    except Exception as e:
+        # 可以选择记录邮件发送失败的错误，但不阻止用户注册流程
+        logging.error(f"Failed to send welcome email: {e}")
+
+
 @router.post("/auth/register", response_model=UserReadAdmin, tags=["auth"])
 async def register(
         request: Request,
         user_create: UserCreate,
-        _user: User = Depends(current_super_user),
+        # _user: User = Depends(current_super_user),
 ):
     """注册时不能指定setting，使用默认setting"""
     async with get_async_session_context() as session:
+
         async with get_user_db_context(session) as user_db:
             async with get_user_manager_context(user_db) as user_manager:
+                # check captcha
+                flag = client.exists(user_create.remark.lower())
+                if not flag:
+                    return response(400, message="验证码错误")
                 user = await user_manager.create(user_create, safe=False, request=request)
+                welcome_subject = "Bear Baby AI:Welcome to Our Platform!"
+                try:
+                    await send_email(user.email, welcome_subject, user.username, "0")
+                except Exception as e:
+                    # 可以选择记录邮件发送失败的错误，但不阻止用户注册流程
+                    print(f"Failed to send welcome email: {e}")
                 return UserReadAdmin.model_validate(user)
+
+
+from pydantic import BaseModel, Field, EmailStr
+import aiosqlite
+import bcrypt
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(..., min_length=4, max_length=6, description="The verification code sent to your email.")
+    newPassword: str = Field(..., min_length=6, description="Your new password.")
+
+
+# @router.post("/auth/reset_password", response_model=UserReadAdmin, tags=["auth"])
+# async def reset_password(
+#         request: Request,
+#         reset_request: UserCreate,
+# ):
+#     """重置密码接口，需要提供邮箱、验证码和新密码"""
+#     async with get_async_session_context() as session:
+#         async with get_user_db_context(session) as user_db:
+#             async with get_user_manager_context(user_db) as user_manager:
+#                 # 验证码校验
+#                 code = f"forget_password:{reset_request.email.lower()}"
+#                 stored_captcha = client.get(code)
+#                 # if not stored_captcha or stored_captcha.decode('utf-8') != reset_request.code:
+#                 #     return response(400, "验证码错误或已过期")
+#                 user = None
+#                 # 寻找用户并重置密码
+#                 try:
+#
+#                 # 假设"1"表示密码重置邮件
+#                 except Exception as e:
+#                     # 记录邮件发送失败的错误，但不阻止流程
+#                     print(f"Failed to send password reset success email: {e}")
+#
+#                 # 清除验证码
+#                 client.delete(code)
+#
+#                 return UserReadAdmin.model_validate(user)
+
+
+async def update_user_password(user_manager, user, new_password):
+    try:
+        # 更新密码
+        await user_manager._update(user, new_password)
+        # 这里可以添加其他逻辑，比如记录日志、发送密码已更改的通知等
+    except Exception as e:
+        # 处理可能出现的错误
+        raise HTTPException(status_code=400, detail=f"Password update failed: {str(e)}")
+
+
+@router.post("/auth/reset_password")
+async def update_password(
+        reset_request: UserForgetPassword,  # 假设UserUpdate模型包含email和new_password字段
+        user_manager: UserManager = Depends(get_user_manager)
+):
+    # 验证码校验
+    code = f"forget_password:{reset_request.email.lower()}"
+    stored_captcha = client.get(code)
+    if not stored_captcha or stored_captcha.decode('utf-8') != reset_request.code:
+        return response(400, "验证码错误或已过期")
+    user = await user_manager.get_by_email(reset_request.email)
+    if not user:
+        return response(400, message="User not found")
+    try:
+        # 更新用户密码
+        updated_user = await user_manager.update(user_update=reset_request, user=user)
+        if not updated_user:
+            return response(400, message="Password update failed")
+    except Exception as e:
+        return response(400, message=f"Password update failed: {str(e)}")
+    return response(200, message="Password updated successfully")
 
 
 @router.get("/user", tags=["user"])

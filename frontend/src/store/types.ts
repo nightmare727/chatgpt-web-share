@@ -15,6 +15,11 @@ export type SavedLoginForm = {
   savedUsername: string | undefined;
   savedPassword: string | undefined;
 };
+interface ForgetPasswordInfo {
+  email: string;
+  code: string;
+  password: string;
+}
 
 interface UserState {
   user: UserRead | null;
