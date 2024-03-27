@@ -57,6 +57,7 @@
     "availableModels": "Available Models",
     "maxConversationCount": "Max number of conversations",
     "availableTotalAskCount": "Available Total Ask Count",
+    "remainingUsage":"Remaining Usage",
     "unlimited": "Unlimited",
     "setUserLimit": "Set user limit",
     "setUserLimitSuccess": "User limit set successfully",
@@ -185,7 +186,7 @@
     "readFileResult": "Result",
     "updateTime": "Update Time",
     "executeCode": "Execute Code",
-    "siteTitleFull": "ChatGPT Web Share",
+    "siteTitleFull": "ChatGPT4",
     "completionLogs": "Completion Logs",
     "time": "Time"
   },

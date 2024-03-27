@@ -9,9 +9,9 @@
           "
         />
       </n-form-item>
-      <n-form-item :label="t('labels.source')">
-        <n-select v-model:value="newConversationInfo.source" :options="availableChatSourceTypes" />
-      </n-form-item>
+<!--      <n-form-item :label="t('labels.source')">-->
+<!--        <n-select v-model:value="newConversationInfo.source" :options="availableChatSourceTypes" />-->
+<!--      </n-form-item>-->
       <n-form-item :label="t('labels.model')">
         <n-select
           v-model:value="newConversationInfo.model"

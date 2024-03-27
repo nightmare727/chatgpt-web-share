@@ -27,8 +27,10 @@ class OpenaiWebPerModelAskCount(RootModel[dict[str, int]]):
 
 
 class OpenaiApiPerModelAskCount(RootModel[dict[str, int]]):
-    root: dict[str, int] = {model: 10 for model in list(OpenaiApiChatModels) if model != OpenaiApiChatModels.gpt_3_5}
-
+    # root: dict[str, int] = {model: 10 for model in list(OpenaiApiChatModels) if model != OpenaiApiChatModels.gpt_3_5}
+    # root: dict[str, int] = {model.code(): 100 if model == OpenaiApiChatModels.gpt_3_5 else 10 for model in
+    #                         OpenaiApiChatModels}
+    root: dict[str, int] = {"gpt_3_5": 100, "gpt_4": 10}
     @model_validator(mode="after")
     @classmethod
     def check(cls, m):
